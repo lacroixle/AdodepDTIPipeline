@@ -1,58 +1,38 @@
-import os
-import contextlib
-import sys
-import glob
 import subprocess
+import sys
+import logging
 import pathlib
 from joblib import Parallel, delayed
 import time
 import logging
+import pickle
+import utils
 
+subjects_filename = pathlib.Path(sys.argv[1])
 
-data_folder = pathlib.Path(os.environ['DATAFOLDER'])
-b0_folder = data_folder.joinpath("B0_maps")
-dti_folder = data_folder.joinpath("DTI")
-output_folder = pathlib.Path(sys.argv[1])
-
-
-# We first retrieve a list of subject ids
-subject_ids = b0_folder.glob("*.nii.gz")
-subject_ids = list(dict.fromkeys([pathlib.PurePosixPath(subject_id).name.split("_")[0] for subject_id in subject_ids]))
-
-
-# Build a list of b0_mag and b0_phase pair for each subject and timepoint
-subjects = []
-for subject_id in subject_ids:
-    b0_mag_bas = b0_folder.joinpath(subject_id + "_magbas.nii.gz")
-    b0_phase_bas = b0_folder.joinpath(subject_id + "_phasebas.nii.gz")
-    b0_mag_fu = b0_folder.joinpath(subject_id + "_magfu.nii.gz")
-    b0_phase_fu = b0_folder.joinpath(subject_id + "_phasefu.nii.gz")
-    dti_bas = dti_folder.joinpath(subject_id + "_dtibas.nii.gz")
-    dti_fu = dti_folder.joinpath(subject_id + "_dtifu.nii.gz")
-
-    if not all([b0_mag_bas.exists(), b0_phase_bas.exists(), b0_mag_fu.exists(), b0_phase_fu.exists(), dti_bas.exists(), dti_fu.exists()]):
-        continue
-
-    subject_path = output_folder.joinpath(subject_id)
-    subject_path.mkdir(exist_ok=True)
-
-    subjects.append({'id': subject_id, 'path': subject_path, 't': "bas", 'mag': b0_mag_bas, 'phase': b0_phase_bas, 'dti': dti_bas})
-    subjects.append({'id': subject_id, 'path': subject_path, 't': "fu", 'mag': b0_mag_fu, 'phase': b0_phase_fu, 'dti': dti_fu})
+with open(subjects_filename, 'rb') as f:
+    subjects = pickle.load(f)
 
 
 def preprocess(subject):
+    # Initialize logger
+    logger = logging.getLogger(subject['id'])
+    logger.addHandler(logging.FileHandler(subject['path'].joinpath("0_preprocess.log"), mode='w'))
+    logger.setLevel(logging.INFO)
+    logger.info("Preprocessing subject {}, step 0...".format(subject['id']))
+
     # Generate mask on the 4 b0 images
     b0_file = subject['path'].joinpath(subject['t'] + "_b0.nii.gz")
     b0_mean_file = subject['path'].joinpath(subject['id'] + "_" + subject['t'] + "_b0_mean.nii.gz")
 
-    subprocess.run(["fslroi", subject['dti'], b0_file, "0", "4"])
-    subprocess.run(["fslmaths", b0_file, "-Tmean", b0_mean_file])
+    utils.run_and_log(["fslroi", subject['dti'], b0_file, "0", "4"], logger)
+    utils.run_and_log(["fslmaths", b0_file, "-Tmean", b0_mean_file], logger)
     b0_file.unlink()
 
     # Compute masked magnitude
     # First split the magnitude file
     b0_mag_name = subject['mag'].name.split(".")[0]
-    subprocess.run(["fslsplit", subject['mag'], subject['path'].joinpath(b0_mag_name)])
+    utils.run_and_log(["fslsplit", subject['mag'], subject['path'].joinpath(b0_mag_name)], logger)
     b0_mag_0_file = subject['path'].joinpath(b0_mag_name + "0000.nii.gz")
     b0_mag_1_file = subject['path'].joinpath(b0_mag_name + "0001.nii.gz")
 
@@ -60,25 +40,27 @@ def preprocess(subject):
     mag_file = subject['path'].joinpath(subject['t'] + "_mag.nii.gz")
     phase_file = subject['path'].joinpath(subject['t'] + "_phase.nii.gz")
 
-    subprocess.run(["flirt", "-in", b0_mag_1_file, "-ref", b0_mean_file, "-out", mag_file, "-interp", "trilinear", "-applyxfm", "-usesqform", "-datatype", "short"])
-    subprocess.run(["flirt", "-in", subject['phase'], "-ref", b0_mean_file, "-out", phase_file, "-interp", "trilinear", "-applyxfm", "-usesqform", "-datatype", "short"])
+    utils.run_and_log(["flirt", "-in", b0_mag_1_file, "-ref", b0_mean_file, "-out", mag_file, "-interp", "trilinear", "-applyxfm", "-usesqform", "-datatype", "short"], logger)
+    utils.run_and_log(["flirt", "-in", subject['phase'], "-ref", b0_mean_file, "-out", phase_file, "-interp", "trilinear", "-applyxfm", "-usesqform", "-datatype", "short"], logger)
 
+    # Mask magnitude
     mask_file = subject['path'].joinpath(subject['id'] + "_" + subject['t'] + "_mask.nii.gz")
-    subprocess.run(["bet2", mag_file, subject['path'].joinpath(subject['id'] + "_" + subject['t']), "-m", "-f", "0.65", "-g", "-0.1", "-n", "-w", "2"])
+    utils.run_and_log(["bet2", mag_file, subject['path'].joinpath(subject['id'] + "_" + subject['t']), "-m", "-f", "0.65", "-g", "-0.1", "-n", "-w", "2"], logger)
+
+    # Some erode/dilation pass to smoothen and "regularize" the mask
     mask_file = subject['path'].joinpath(subject['id'] + "_" + subject['t'] + "_mask.nii.gz")
-    subprocess.run(["fslmaths", mask_file, "-kernel", "sphere", "5", "-ero", mask_file])
-    subprocess.run(["fslmaths", mask_file, "-kernel", "sphere", "7", "-dilF", mask_file])
-    #subprocess.run(["fslmaths", mask_file, "-kernel", "sphere", "", "-ero", mask_file])
+    utils.run_and_log(["fslmaths", mask_file, "-kernel", "sphere", "5", "-ero", mask_file], logger)
+    utils.run_and_log(["fslmaths", mask_file, "-kernel", "sphere", "7", "-dilF", mask_file], logger)
 
     # Mask mag
-    subprocess.run(["fslmaths", mag_file, "-mas", mask_file, mag_file])
+    utils.run_and_log(["fslmaths", mag_file, "-mas", mask_file, mag_file], logger)
 
     # Compute fieldmap
     fieldmap_file = subject['path'].joinpath(subject['id'] + "_" + subject['t'] + "_fieldmap.nii.gz")
-    subprocess.run(["fsl_prepare_fieldmap", "SIEMENS", phase_file, mag_file, fieldmap_file, "2.46"])
+    utils.run_and_log(["fsl_prepare_fieldmap", "SIEMENS", phase_file, mag_file, fieldmap_file, "2.46"], logger)
 
     # Convert rad.s-1 into Hz
-    subprocess.run(["fslmaths", fieldmap_file, "-mul", "0.159155", fieldmap_file])
+    utils.run_and_log(["fslmaths", fieldmap_file, "-mul", "0.159155", fieldmap_file], logger)
 
     b0_mag_0_file.unlink()
     b0_mag_1_file.unlink()
@@ -88,9 +70,7 @@ def preprocess(subject):
 print("Running preprocessing...")
 start = time.perf_counter()
 
-with open(os.devnull, 'w') as devnull:
-    with contextlib.redirect_stdout(devnull):
-        Parallel(n_jobs=1)(delayed(preprocess)(subject) for subject in subjects[:1])
+Parallel(n_jobs=1)(delayed(preprocess)(subject) for subject in subjects[:1])
 
 print("Done. Elapsed time={}".format(time.perf_counter() - start))
 
