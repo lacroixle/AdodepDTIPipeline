@@ -41,7 +41,8 @@ def apply_eddy(subject):
                                  "--bvecs=" + str(subject['bvec']),
                                  "--bvals=" + str(subject['bval']),
                                  "--out=" + str(eddy_output_root),
-                                 #"--field=" + str(fieldmap_file),
+                                 "--field=" + str(fieldmap_file),
+                                 "--repol",
                                  "-v"], logger)
 
     logger.info("1_preprocess done. Elapsed time={}".format(time.perf_counter() - start))

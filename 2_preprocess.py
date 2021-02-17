@@ -29,6 +29,7 @@ def compute_dti(subject):
 
     dtifit_output_root = subject['path'].joinpath(subject['id'] + "_" + subject['t'] + "_dtifit")
     mask_file = subject['path'].joinpath(subject['id'] + "_" + subject['t'] + "_mask.nii.gz")
+    data_file = subject['path'].joinpath(subject['id'] + "_" + subject['t'] + "_eddy.nii.gz")
 
     success = utils.run_and_log(["dtifit",
                                  "--data={}".format(subject['dti']),

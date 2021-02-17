@@ -33,7 +33,11 @@ def preprocess(subject):
 
     utils.run_and_log(["fslroi", subject['dti'], b0_file, "0", "4"], logger)
     utils.run_and_log(["fslmaths", b0_file, "-Tmean", b0_mean_file], logger)
-    subprocess.run(["bet", b0_mean_file, subject['path'].joinpath(subject['id'] + "_" + subject['t']), "-f", "0.35", "-m", "-n", "-R", "-t"])
+    utils.run_and_log(["bet", b0_mean_file, subject['path'].joinpath(subject['id'] + "_" + subject['t']), "-f", "0.4", "-g", "0", "-m", "-n", "-R", "-t"], logger)
+    utils.run_and_log(["fslmaths", mask_file, "-kernel", "sphere", "5", "-dilM", mask_file], logger)
+    utils.run_and_log(["fslmaths", mask_file, "-kernel", "sphere", "8", "-ero", mask_file], logger)
+    
+    
     b0_file.unlink()
     b0_mean_file.unlink()
 
@@ -56,11 +60,11 @@ def preprocess(subject):
     utils.run_and_log(["bet2", mag_file, subject['path'].joinpath(subject['t'] + "_mag"), "-m", "-f", "0.65", "-g", "-0.1", "-n", "-w", "2"], logger)
 
     # Some erode/dilation pass to smoothen and "regularize" the mask
-    utils.run_and_log(["fslmaths", mag_mask_file, "-kernel", "sphere", "5", "-ero", mask_file], logger)
-    utils.run_and_log(["fslmaths", mag_mask_file, "-kernel", "sphere", "7", "-dilF", mask_file], logger)
+    utils.run_and_log(["fslmaths", mag_mask_file, "-kernel", "sphere", "5", "-ero", mag_mask_file], logger)
+    utils.run_and_log(["fslmaths", mag_mask_file, "-kernel", "sphere", "7", "-dilF", mag_mask_file], logger)
 
     # Mask magnitude
-    utils.run_and_log(["fslmaths", mag_file, "-mas", mag_mask_file, mag_file], logger)
+    utils.run_and_log(["fslmaths", mag_file, "-mas", mask_file, mag_file], logger)
 
     # Compute fieldmap
     logger.info("Computing fieldmap...")
