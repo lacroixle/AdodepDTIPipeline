@@ -32,6 +32,10 @@ for subject_id in subject_ids:
     b0_phase_fu = b0_folder.joinpath(subject_id + "_phasefu.nii.gz")
     dti_bas = dti_folder.joinpath(subject_id + "_dtibas.nii.gz")
     dti_fu = dti_folder.joinpath(subject_id + "_dtifu.nii.gz")
+    bvec_bas = dti_folder.joinpath(subject_id + "_dtibas.bvec")
+    bval_bas = dti_folder.joinpath(subject_id + "_dtibas.bval")
+    bvec_fu = dti_folder.joinpath(subject_id + "_dtifu.bvec")
+    bval_fu = dti_folder.joinpath(subject_id + "_dtifu.bval")
 
     if not all([b0_mag_bas.exists(), b0_phase_bas.exists(), b0_mag_fu.exists(), b0_phase_fu.exists(), dti_bas.exists(), dti_fu.exists()]):
         continue
@@ -39,8 +43,8 @@ for subject_id in subject_ids:
     subject_path = output_folder.joinpath(subject_id)
     subject_path.mkdir(exist_ok=True)
 
-    subjects.append({'id': subject_id, 'path': subject_path, 't': "bas", 'mag': b0_mag_bas, 'phase': b0_phase_bas, 'dti': dti_bas})
-    subjects.append({'id': subject_id, 'path': subject_path, 't': "fu", 'mag': b0_mag_fu, 'phase': b0_phase_fu, 'dti': dti_fu})
+    subjects.append({'id': subject_id, 'path': subject_path, 't': "bas", 'mag': b0_mag_bas, 'phase': b0_phase_bas, 'dti': dti_bas, 'bvec': bvec_bas, 'bval': bval_bas})
+    subjects.append({'id': subject_id, 'path': subject_path, 't': "fu", 'mag': b0_mag_fu, 'phase': b0_phase_fu, 'dti': dti_fu, 'bvec': bvec_fu, 'bval': bval_fu})
 
 print("Found {} subjects.".format(len(subjects)))
 
