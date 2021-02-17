@@ -13,8 +13,7 @@ def run_and_log(cmd, logger):
 
         return False
     else:
-        if output.stdout:
-            logger.info(output.stdout.decode('utf-8'))
+        logger.info(output.stdout.decode('utf-8'))
 
         return True
 
