@@ -44,9 +44,11 @@ def compute_dti(subject):
     return success
 
 
-for subject in subjects[:1]:
-    print("Processing subject {} at {}.".format(subject['id'], subject['t']))
-    success = compute_dti(subject)
-    if not success:
-        print("Exception raised while processing, see log for further details...")
+# for subject in subjects:
+#     print("Processing subject {} at {}.".format(subject['id'], subject['t']))
+#     success = compute_dti(subject)
+#     if not success:
+#         print("Exception raised while processing, see log for further details...")
+
+Parallel(n_jobs=4)(delayed(compute_dti)(subject) for subject in subjects)
 

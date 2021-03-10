@@ -33,11 +33,13 @@ def preprocess(subject):
 
     utils.run_and_log(["fslroi", subject['dti'], b0_file, "0", "4"], logger)
     utils.run_and_log(["fslmaths", b0_file, "-Tmean", b0_mean_file], logger)
-    utils.run_and_log(["bet", b0_mean_file, subject['path'].joinpath(subject['id'] + "_" + subject['t']), "-f", "0.4", "-g", "0", "-m", "-n", "-R", "-t"], logger)
-    utils.run_and_log(["fslmaths", mask_file, "-kernel", "sphere", "5", "-dilM", mask_file], logger)
-    utils.run_and_log(["fslmaths", mask_file, "-kernel", "sphere", "8", "-ero", mask_file], logger)
-    
-    
+    #utils.run_and_log(["bet", b0_mean_file, subject['path'].joinpath(subject['id'] + "_" + subject['t']), "-f", "0.5", "-g", "-0.05", "-m", "-n", "-v"], logger)
+    utils.run_and_log(["bet2", b0_mean_file, subject['path'].joinpath(subject['id'] + "_" + subject['t']), "-m", "-f", "0.2", "-n", "-w", "1.2"], logger)
+    utils.run_and_log(["fslmaths", mask_file, "-fillh", mask_file], logger)
+    #utils.run_and_log(["fslmaths", mask_file, "-kernel", "sphere", "4", "-dilM", mask_file], logger)
+    #utils.run_and_log(["fslmaths", mask_file, "-kernel", "sphere", "3", "-eroF", mask_file], logger)
+
+
     b0_file.unlink()
     b0_mean_file.unlink()
 
@@ -52,27 +54,34 @@ def preprocess(subject):
     mag_file = subject['path'].joinpath(subject['t'] + "_mag.nii.gz")
     phase_file = subject['path'].joinpath(subject['t'] + "_phase.nii.gz")
 
-    utils.run_and_log(["flirt", "-in", mag_1_file, "-ref", mask_file, "-out", mag_file, "-interp", "trilinear", "-applyxfm", "-usesqform", "-datatype", "short"], logger)
-    utils.run_and_log(["flirt", "-in", subject['phase'], "-ref", mask_file, "-out", phase_file, "-interp", "trilinear", "-applyxfm", "-usesqform", "-datatype", "short"], logger)
+    utils.run_and_log(["flirt", "-in", mag_0_file, "-ref", mask_file, "-out", mag_file, "-interp", "nearestneighbour", "-applyxfm", "-usesqform", "-datatype", "short"], logger)
+    utils.run_and_log(["flirt", "-in", subject['phase'], "-ref", mask_file, "-out", phase_file, "-interp", "nearestneighbour", "-applyxfm", "-usesqform", "-datatype", "short"], logger)
 
     # Mask from magnitude
     mag_mask_file = subject['path'].joinpath(subject['t'] + "_mag_mask.nii.gz")
-    utils.run_and_log(["bet2", mag_file, subject['path'].joinpath(subject['t'] + "_mag"), "-m", "-f", "0.65", "-g", "-0.1", "-n", "-w", "2"], logger)
+    utils.run_and_log(["bet2", mag_file, subject['path'].joinpath(subject['t'] + "_mag"), "-m", "-f", "0.6", "-g", "-0.1", "-n", "-v"], logger)
 
     # Some erode/dilation pass to smoothen and "regularize" the mask
-    utils.run_and_log(["fslmaths", mag_mask_file, "-kernel", "sphere", "5", "-ero", mag_mask_file], logger)
-    utils.run_and_log(["fslmaths", mag_mask_file, "-kernel", "sphere", "7", "-dilF", mag_mask_file], logger)
+    utils.run_and_log(["fslmaths", mag_mask_file, "-fillh", mag_mask_file], logger)
+    #utils.run_and_log(["fslmaths", mag_mask_file, "-kernel", "sphere", "4", "-ero", mag_mask_file], logger)
+    #utils.run_and_log(["fslmaths", mag_mask_file, "-kernel", "sphere", "5", "-dilF", mag_mask_file], logger)
 
     # Mask magnitude
-    utils.run_and_log(["fslmaths", mag_file, "-mas", mask_file, mag_file], logger)
+    utils.run_and_log(["fslmaths", mag_file, "-mas", mag_mask_file, mag_file], logger)
 
     # Compute fieldmap
     logger.info("Computing fieldmap...")
     fieldmap_file = subject['path'].joinpath(subject['id'] + "_" + subject['t'] + "_fieldmap.nii.gz")
-    utils.run_and_log(["fsl_prepare_fieldmap", "SIEMENS", phase_file, mag_file, fieldmap_file, "2.46"], logger)
+    # utils.run_and_log(["fsl_prepare_fieldmap", "SIEMENS", phase_file, mag_file, fieldmap_file, "2.46"], logger)
+    utils.run_and_log(["fsl_prepare_fieldmap", "SIEMENS", phase_file, mag_file, fieldmap_file, "2.65"], logger)
+
+    # Smooth fieldmap
+    utils.run_and_log(["fugue", "--loadfmap={}".format(fieldmap_file),
+                       "-s", "5",
+                       "--savefmap={}".format(fieldmap_file)], logger)
 
     # Convert rad.s-1 into Hz
-    utils.run_and_log(["fslmaths", fieldmap_file, "-mul", "0.159155", fieldmap_file], logger)
+    utils.run_and_log(["fslmaths", fieldmap_file, "-div", "6.2830", fieldmap_file], logger)
 
     mag_0_file.unlink()
     mag_1_file.unlink()
@@ -84,7 +93,7 @@ def preprocess(subject):
 print("Running preprocessing...")
 start = time.perf_counter()
 
-Parallel(n_jobs=1)(delayed(preprocess)(subject) for subject in subjects[:1])
+Parallel(n_jobs=int(72/4))(delayed(preprocess)(subject) for subject in subjects)
 
 print("Done. Elapsed time={}".format(time.perf_counter() - start))
 
