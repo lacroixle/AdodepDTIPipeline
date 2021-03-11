@@ -38,6 +38,7 @@ for subject_id in subject_ids:
     bval_fu = dti_folder.joinpath(subject_id + "_dtifu.bval")
 
     if not all([b0_mag_bas.exists(), b0_phase_bas.exists(), b0_mag_fu.exists(), b0_phase_fu.exists(), dti_bas.exists(), dti_fu.exists()]):
+        print("Missing informations for {}".format(subject_id))
         continue
 
     subject_path = output_folder.joinpath(subject_id)

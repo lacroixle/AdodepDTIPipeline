@@ -46,6 +46,6 @@ def eddy_qc(subject):
     # print("Eddy QC for subject {} at {}.".format(subject['id'], subject['t']))
 
 start = time.perf_counter()
-Parallel(n_jobs=72)(delayed(eddy_qc)(subject) for subject in subjects)
+Parallel(n_jobs=18, batch_size=5)(delayed(eddy_qc)(subject) for subject in subjects)
 print("Done. Elapsed time={}".format(time.perf_counter() - start))
 
