@@ -8,14 +8,25 @@ df_1 = pd.read_csv("covariables_adodep_dti_2.csv", sep=";")
 df_0 = pd.DataFrame(df_0.values.tolist(), columns=df_0.columns, index=df_0["code sujet BL"])
 df_1 = pd.DataFrame(df_1.values.tolist(), columns=df_1.columns, index=df_1["code sujet BL"])
 
-df_1.drop(index="04_BV_020_T", inplace=True)
+# Unknown ghost subject
+#df_1.drop(index="04_BV_020_T", inplace=True)
 
 
 def is_subject_in_0(subject_id):
+    if subject_id == "04_BV_020_T":
+        return True
+
     return subject_id in df_0.index
 
 
 def get_attribute_0(subject_id, t, attribute):
+    if subject_id == "04_BV_020_T":
+        if attribute == "audit":
+            if t == "bas":
+                return 6
+            elif t == "fu":
+                return 11
+
     if t == 'fu':
         subject_id = get_attribute_1(subject_id, 'Code FU')
 
@@ -29,9 +40,11 @@ def get_attribute_1(subject_id, attribute):
 subjects_id = list(df_1["code sujet BL"])
 print("Found {} subjects.".format(len(subjects_id)))
 subjects = []
+output_df = pd.DataFrame()
 
 for subject in subjects_id:
-    d = {'id': subject.replace("_", "")}
+    #d = {'id': subject.replace("_", "")}
+    d = {}
     d['gender'] = get_attribute_1(subject, 'gender')
     d['bipolar'] = get_attribute_1(subject, 'bipolar')
     d['qit'] = get_attribute_1(subject, 'QIT')
@@ -53,8 +66,10 @@ for subject in subjects_id:
         d['prisma_fu'] = get_attribute_1(subject, 'Prisma FU')
         d['audit_fu'] = get_attribute_0(subject, 'fu', 'audit')
 
-    subjects.append(d)
+    subjects.append(pd.Series(d, name=subject.replace("_", "")))
 
 output_df = pd.DataFrame(subjects)
-output_df.to_excel("subject.xlsx", "table")
+
+output_df.to_excel("subjects.xlsx", "table")
+output_df.to_hdf("subjects.h5", "table")
 

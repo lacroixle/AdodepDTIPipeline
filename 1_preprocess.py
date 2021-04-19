@@ -15,6 +15,17 @@ with open(subjects_filename, 'rb') as f:
     subjects = pickle.load(f)
 
 
+# If a subject ID is explicitely given, only process this one
+if len(sys.argv) == 4:
+    subject_id = sys.argv[2]
+    subject_t = sys.argv[3]
+    subjects = list([subject for subject in subjects if subject['id'] == subject_id and subject['t'] == subject_t])
+
+    if not subjects:
+        print("Could not find subject {} at time {}!".format(subject_id, subject_t))
+        exit()
+
+
 def apply_eddy(subject):
     print("Processing subject {} at {}.".format(subject['id'], subject['t']))
 
@@ -38,7 +49,7 @@ def apply_eddy(subject):
     with open(index_file, 'w') as f:
         f.write("1 "*count)
 
-    logger.info("Found {} diffusion directions.")
+    logger.info("Found {} diffusion directions.".format(count))
 
     eddy_output_root = subject['path'].joinpath(subject['id'] + "_" + subject['t'] + "_eddy")
     fieldmap_file = subject['path'].joinpath(subject['id'] + "_" + subject['t'] + "_fieldmap")
@@ -55,25 +66,24 @@ def apply_eddy(subject):
                                  "--out=" + str(eddy_output_root),
                                  "--field=" + str(fieldmap_file),
                                  "--repol",
-                                 #"--slspec=slspec.txt",
-                                 "--niter=8",
-                                 "--fwhm=10,6,4,2,0,0,0,0",
-                                 "--mb=2",
-                                 "--mporder=1",
+                                 "--slspec=slspec.txt",
+                                 # "--json=DTI_spec.json",
+                                 "--niter=6",
+                                 "--fwhm=10,5,1,0,0,0",
+                                 "--mporder=8",
+                                 "--s2v_niter=8",
                                  "--ol_type=both",
-                                 "--s2v_niter=5",
                                  "--estimate_move_by_susceptibility",
-                                 "-v"], logger)
+                                 "--very_verbose"], logger)
 
     logger.info("1_preprocess done. Elapsed time={}".format(time.perf_counter() - start))
 
     return success
 
 
-# for subject in subjects:
-#     success = apply_eddy(subject)
-#     if not success:
-#         print("Exception raised while processing, see log for further details...")
+for subject in subjects:
+    success = apply_eddy(subject)
+    if not success:
+        print("Exception raised while processing, see log for further details...")
 
-Parallel(n_jobs=1)(delayed(apply_eddy)(subject) for subject in subjects)
 
